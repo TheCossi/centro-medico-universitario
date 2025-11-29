@@ -1,21 +1,22 @@
-const express = require('express');
-const cors = require('cors');
-const { Low } = require('lowdb');
-const { JSONFile } = require('lowdb/node');
-const path = require('path');
+// server.js 
+import express from 'express';
+import cors from 'cors';
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Base de datos con lowdb (se guarda en db.json)
 const dbPath = path.join(__dirname, 'db.json');
 const adapter = new JSONFile(dbPath);
 const db = new Low(adapter);
 
-// Datos iniciales (se crean si no existe el archivo)
 const defaultData = {
   pacientes: [],
   turnos: [],
@@ -30,7 +31,7 @@ await db.read();
 db.data ||= defaultData;
 await db.write();
 
-// === RUTAS PACIENTES ===
+// RUTAS (igual que antes)
 app.get('/pacientes', async (req, res) => {
   await db.read();
   res.json(db.data.pacientes);
@@ -44,7 +45,6 @@ app.post('/pacientes', async (req, res) => {
   res.status(201).json(nuevo);
 });
 
-// === RUTAS TURNOS ===
 app.get('/turnos', async (req, res) => {
   await db.read();
   res.json(db.data.turnos);
@@ -71,9 +71,8 @@ app.patch('/turnos/:id', async (req, res) => {
   }
 });
 
-// === RUTA DE PRUEBA ===
 app.get('/', (req, res) => {
-  res.send('Backend del Centro Médico Universitario - FUNCIONANDO');
+  res.send('Backend Centro Médico Hernández Vera - ONLINE');
 });
 
 const PORT = process.env.PORT || 4000;
