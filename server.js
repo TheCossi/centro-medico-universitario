@@ -1,81 +1,76 @@
 // server.js 
 import express from 'express';
 import cors from 'cors';
-import { Low } from 'lowdb';
-import { JSONFile } from 'lowdb/node';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const dbPath = path.join(__dirname, 'db.json');
-const adapter = new JSONFile(dbPath);
-const db = new Low(adapter);
+// Conexión a MongoDB Atlas
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/centromedico";
 
-const defaultData = {
-  pacientes: [],
-  turnos: [],
-  usuarios: [
-    { id: 1, nombre: "Admin", rol: "admin" },
-    { id: 2, nombre: "Recepcionista", rol: "recepcionista" },
-    { id: 3, nombre: "Dr. Gómez", rol: "medico" }
-  ]
-};
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('MongoDB conectado'))
+  .catch(err => console.log('Error MongoDB:', err));
 
-await db.read();
-db.data ||= defaultData;
-await db.write();
+// Modelos
+const pacienteSchema = new mongoose.Schema({
+  nombre: String,
+  dni: String,
+  telefono: String,
+  obraSocial: String
+}, { timestamps: true });
 
-// RUTAS (igual que antes)
-app.get('/pacientes', async (req, res) => {
-  await db.read();
-  res.json(db.data.pacientes);
+const turnoSchema = new mongoose.Schema({
+  paciente: String,
+  medico: String,
+  fecha: String,
+  hora: String,
+  motivo: String,
+  estado: { type: String, default: 'pendiente' }
 });
 
-app.post('/pacientes', async (req, res) => {
-  await db.read();
-  const nuevo = { id: Date.now(), ...req.body };
-  db.data.pacientes.push(nuevo);
-  await db.write();
-  res.status(201).json(nuevo);
-});
+const Paciente = mongoose.model('Paciente', pacienteSchema);
+const Turno = mongoose.model('Turno', turnoSchema);
 
-app.get('/turnos', async (req, res) => {
-  await db.read();
-  res.json(db.data.turnos);
-});
-
-app.post('/turnos', async (req, res) => {
-  await db.read();
-  const nuevo = { id: Date.now(), estado: 'pendiente', ...req.body };
-  db.data.turnos.push(nuevo);
-  await db.write();
-  res.status(201).json(nuevo);
-});
-
-app.patch('/turnos/:id', async (req, res) => {
-  await db.read();
-  const id = parseInt(req.params.id);
-  const turno = db.data.turnos.find(t => t.id === id);
-  if (turno) {
-    Object.assign(turno, req.body);
-    await db.write();
-    res.json(turno);
-  } else {
-    res.status(404).json({ error: 'Turno no encontrado' });
-  }
-});
-
+// Rutas
 app.get('/', (req, res) => {
   res.send('Backend Centro Médico Hernández Vera - ONLINE');
 });
 
+app.get('/pacientes', async (req, res) => {
+  const pacientes = await Paciente.find();
+  res.json(pacientes);
+});
+
+app.post('/pacientes', async (req, res) => {
+  const paciente = new Paciente(req.body);
+  await paciente.save();
+  res.status(201).json(paciente);
+});
+
+app.get('/turnos', async (req, res) => {
+  const turnos = await Turno.find().sort({ fecha: 1, hora: 1 });
+  res.json(turnos);
+});
+
+app.post('/turnos', async (req, res) => {
+  const turno = new Turno(req.body);
+  await turno.save();
+  res.status(201).json(turno);
+});
+
+app.patch('/turnos/:id', async (req, res) => {
+  const turno = await Turno.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  res.json(turno);
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`Backend corriendo en puerto ${PORT}`);
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
+
